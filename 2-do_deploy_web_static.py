@@ -1,48 +1,30 @@
-#!/usr/bin/env bash
-# sets up my web servers for the deployment of web_static
+#!/usr/bin/python3
+"""
+Fabric script based on the file 1-pack_web_static.py that distributes an
+archive to the web servers
+"""
 
-echo -e "\e[1;32m START\e[0m"
+from fabric.api import put, run, env
+from os.path import exists
+env.hosts = ['142.44.167.228', '144.217.246.195']
 
-#--Updating the packages
-sudo apt-get -y update
-sudo apt-get -y install nginx
-echo -e "\e[1;32m Packages updated\e[0m"
-echo
 
-#--configure firewall
-sudo ufw allow 'Nginx HTTP'
-echo -e "\e[1;32m Allow incomming NGINX HTTP connections\e[0m"
-echo
-
-#--created the dir
-sudo mkdir -p /data/web_static/releases/test /data/web_static/shared
-echo -e "\e[1;32m directories created"
-echo
-
-#--adds test string
-echo "<h1>Welcome to www.uniqueel.tech</h1>" > /data/web_static/releases/test/index.html
-echo -e "\e[1;32m Test string added\e[0m"
-echo
-
-#--prevent overwrite
-if [ -d "/data/web_static/current" ];
-then
-    echo "path /data/web_static/current exists"
-    sudo rm -rf /data/web_static/current;
-fi;
-echo -e "\e[1;32m prevent overwrite\e[0m"
-echo
-
-#--create symbolic link
-sudo ln -sf /data/web_static/releases/test/ /data/web_static/current
-sudo chown -hR ubuntu:ubuntu /data
-
-sudo sed -i '38i\\tlocation /hbnb_static/ {\n\t\talias /data/web_static/current/;\n\t}\n' /etc/nginx/sites-available/default
-
-sudo ln -sf '/etc/nginx/sites-available/default' '/etc/nginx/sites-enabled/default'
-echo -e "\e[1;32m Symbolic link created\e[0m"
-echo
-
-#--restart NGINX
-sudo service nginx restart
-echo -e "\e[1;32m restart NGINX\e[0m"
+def do_deploy(archive_path):
+    """distributes an archive to the web servers"""
+    if exists(archive_path) is False:
+        return False
+    try:
+        file_n = archive_path.split("/")[-1]
+        no_ext = file_n.split(".")[0]
+        path = "/data/web_static/releases/"
+        put(archive_path, '/tmp/')
+        run('mkdir -p {}{}/'.format(path, no_ext))
+        run('tar -xzf /tmp/{} -C {}{}/'.format(file_n, path, no_ext))
+        run('rm /tmp/{}'.format(file_n))
+        run('mv {0}{1}/web_static/* {0}{1}/'.format(path, no_ext))
+        run('rm -rf {}{}/web_static'.format(path, no_ext))
+        run('rm -rf /data/web_static/current')
+        run('ln -s {}{}/ /data/web_static/current'.format(path, no_ext))
+        return True
+    except:
+        return False
